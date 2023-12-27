@@ -13,7 +13,7 @@ class Model(torch.nn.Module):
     Extensible layer on top of `torch.nn.Module` to add amenities such as
     - Object-oriented model checkpointing
     - Verbose model summary (TensorFlow style)
-    Note: Only top level modules should extend this class - all other submodules should style defer to `torch.nn.Module`.
+    Note: Only top level modules should extend this class - all other submodules should defer to `torch.nn.Module`.
     """
 
     def __init__(self, checkpoint_dir: Union[str, os.PathLike], *args, **kwargs):
@@ -26,10 +26,7 @@ class Model(torch.nn.Module):
             **kwargs: Arbitrary keyword arguments.
         """
         super(Model, self).__init__(*args, **kwargs)
-        if isinstance(checkpoint_dir, str):
-            self.checkpoint_dir = pathlib.Path(checkpoint_dir)
-        else:
-            self.checkpoint_dir = checkpoint_dir
+        self.checkpoint_dir = pathlib.Path(checkpoint_dir)
 
     def save(self, name: str = None, **metadata):
         """
@@ -54,7 +51,7 @@ class Model(torch.nn.Module):
         filename = self.checkpoint_dir / name
         torch.save(state, filename)
 
-    def load(self, device: str = "cpu", name: str = None):
+    def load(self, name: str = None, device: str = "cpu"):
         """
         Load model parameters from file.
 
@@ -62,7 +59,7 @@ class Model(torch.nn.Module):
 
         Args:
             device (str, optional): Device to load parameters to. Defaults to "cpu".
-            id (str, optional): Name of the model checkpoint to load from checkpoint
+            name (str, optional): Name of the model checkpoint to load from checkpoint
                                 directory. If unspecified, loads the most recent model (by timestamp).
 
         Returns:
@@ -78,8 +75,8 @@ class Model(torch.nn.Module):
         else:
             file = self.checkpoint_dir / name
 
-        with file.open("rb") as ifstream:
-            checkpoint = torch.load(ifstream, map_location=device)
+        with file.open("rb") as fstream:
+            checkpoint = torch.load(fstream, map_location=device)
 
         try:
             self.load_state_dict(checkpoint["state_dict"])
@@ -103,9 +100,9 @@ class Model(torch.nn.Module):
         separator = "\n" + "─" * LENGTH + "\n"
         thick_separator = "=" * LENGTH
 
-        def extract(input):
+        def extract(module_info):
             nonlocal total_param, trainable_param
-            name, module = input
+            name, module = module_info
             count = sum(map(lambda x: x.numel(), module.parameters()))
             total_param += count
             if module.requires_grad_:
@@ -137,12 +134,16 @@ def find_file_by_timestamp(files: Iterable[pathlib.Path], latest=True) -> pathli
 
     Args:
         files (Iterable[pathlib.Path]): A collection of pathlib.Path objects representing the files to search.
-        latest (bool, optional): If True, find the file with the latest timestamp. If False, find the file with the earliest timestamp. Defaults to True.
+        latest (bool, optional): If True, find the file with the latest timestamp. If False,
+        find the file with the earliest timestamp. Defaults to True.
 
     Returns:
         pathlib.Path: The path of the file with the latest or earliest timestamp.
     """
-    cmp = lambda t1, t2: t1 > t2 if latest else t2 < t1
+
+    def cmp(t1: int, t2: int) -> bool:
+        return t1 > t2 if latest else t2 < t1
+
     reducer = (
         lambda file1, file2: file1
         if cmp(file1.stat().st_mtime_ns, file2.stat().st_mtime_ns)
