@@ -120,11 +120,6 @@ class Model(torch.nn.Module):
         output.append(thick_separator)
 
         return "\n".join(output)
-
-    def __repr__(self):
-        return self.summary()
-
-
 # --- utils ---
 
 
