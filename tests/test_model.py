@@ -12,18 +12,20 @@ class BasicModel(model.Model):
         self.dense = torch.nn.Linear(100, 20)
 
 
-def test_checkpoint_dir(tmp_path):
+@pytest.fixture()
+def net(tmp_path):
+    return BasicModel(checkpoint_dir=f"{tmp_path}/checkpoints")
+
+
+def test_checkpoint_dir(tmp_path, net):
     # test that checkpoint directory is lazily created if it does not exist
-    net = BasicModel(checkpoint_dir=f"{tmp_path}/checkpoints")
     assert not net.checkpoint_dir.exists()
     net.save("test.pth")
     assert net.checkpoint_dir.exists()
 
 
-def test_checkpoint_dir_pathlib(tmp_path):
+def test_checkpoint_dir_pathlib(tmp_path, net):
     # test that checkpoint directory is lazily created from pathlib.Path if it does not exist
-    path = pathlib.Path(tmp_path)
-    net = BasicModel(checkpoint_dir=path / "checkpoints")
     assert not net.checkpoint_dir.exists()
     net.save("test.pth")
     assert net.checkpoint_dir.exists()
@@ -52,30 +54,25 @@ def test_checkpoint_dir_create_parents(tmp_path):
     assert net.checkpoint_dir.parent.exists()
 
 
-def test_save_custom_name(tmp_path):
+def test_save_custom_name(tmp_path, net):
     # test that model can be saved with custom name
     tmpdir = pathlib.Path(tmp_path) / "checkpoints"
-    net = BasicModel(checkpoint_dir=tmpdir)
     net.save("test.pth")
-
     assert (tmpdir / "test.pth").exists()
 
 
-def test_save_weird_name(tmp_path):
+def test_save_weird_name(tmp_path, net):
     # test that model can be saved with weird name
     tmpdir = pathlib.Path(tmp_path) / "checkpoints"
-    net = BasicModel(checkpoint_dir=tmpdir)
     net.save("asd1291___203__203__23421__321")
     assert (tmpdir / "asd1291___203__203__23421__321").exists()
 
 
-def test_load(tmp_path):
+def test_load(tmp_path, net):
     # test that model can be loaded
-    tmpdir = pathlib.Path(tmp_path) / "checkpoints"
-    net = BasicModel(checkpoint_dir=tmpdir)
     net.save("test.pth")
+    new_model = BasicModel(checkpoint_dir=f"{tmp_path}/checkpoints")
 
-    new_model = BasicModel(checkpoint_dir=tmpdir)
     checkpoint = new_model.load(name="test.pth")
     assert checkpoint["name"] == "test.pth"
     assert torch.equal(
