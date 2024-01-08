@@ -1,15 +1,47 @@
+import os
+
 import pyro.model as model
 import pytest
 import time
 import torch
 from tempfile import TemporaryDirectory
 import pathlib
+from collections import namedtuple
 
 
 class BasicModel(model.Model):
     def __init__(self, *args, **kwargs):
         super(BasicModel, self).__init__(*args, **kwargs)
         self.dense = torch.nn.Linear(100, 20)
+
+
+class ConvBN(torch.nn.Module):
+    def __init__(self, in_channels, out_channels, activation, *args, **kwargs):
+        super().__init__()
+        self.conv = torch.nn.Conv2d(in_channels, out_channels, *args, **kwargs)
+        self.bn = torch.nn.BatchNorm2d(out_channels)
+        torch.nn.init.kaiming_normal_(self.conv.weight, nonlinearity=activation)
+        torch.nn.init.constant_(self.conv.bias, 0)
+
+    def forward(self, x):
+        return self.bn(self.conv(x))
+
+
+class NestedBasicModel(model.Model):
+    def __init__(self, *args, **kwargs):
+        super(NestedBasicModel, self).__init__(*args, **kwargs)
+        self.features = torch.nn.Sequential(
+            ConvBN(3, 32, activation="relu", kernel_size=3, padding=1),
+            ConvBN(32, 64, activation="relu", kernel_size=3, padding=1),
+            ConvBN(64, 128, activation="relu", kernel_size=3, padding=1),
+            ConvBN(128, 8, activation="relu", kernel_size=3, padding=1),
+        )
+        self.norm = torch.nn.BatchNorm2d(3)
+
+    def forward(self, x):
+        x = self.norm(x)
+        x = self.features(x)
+        return x
 
 
 @pytest.fixture()
@@ -31,19 +63,18 @@ def test_checkpoint_dir_pathlib(tmp_path, net):
     assert net.checkpoint_dir.exists()
 
 
-def test_checkpoint_clobber():
+def test_checkpoint_clobber(tmpdir):
     # test that checkpoint directory, if already exists, is not clobbered
-    with TemporaryDirectory("tempdir") as tempdir:
-        tempdir_path = pathlib.Path(tempdir) / "checkpoints"
-        file = tempdir_path / "cool_beans.txt"
+    tempdir_path = pathlib.Path(tmpdir) / "checkpoints"
+    file = tempdir_path / "cool_beans.txt"
 
-        net = BasicModel(checkpoint_dir=tempdir_path)
-        assert not net.checkpoint_dir.exists()
-        tempdir_path.mkdir(parents=True)
-        file.touch()
-        assert file.exists()
-        net.save("test.pth")
-        assert file.exists()
+    net = BasicModel(checkpoint_dir=tempdir_path)
+    assert not net.checkpoint_dir.exists()
+    tempdir_path.mkdir(parents=True)
+    file.touch()
+    assert file.exists()
+    net.save("test.pth")
+    assert file.exists()
 
 
 def test_checkpoint_dir_create_parents(tmp_path):
@@ -144,28 +175,137 @@ def test_load_auto_one_choice(tmp_path):
     assert checkpoint["name"] == "test_only.pth"
 
 
-def test_model_print():
-    """Tests that the model prints correctly."""
+def test_model_summary(mocker):
+    """Tests that the model is summarized correctly."""
+    mocker.patch(
+        'os.get_terminal_size',
+        return_value=namedtuple(
+            "TerminalSize",
+            ["columns", "lines"]
+        )(50, 100)
+    )
+
     net = BasicModel(checkpoint_dir="checkpoints")
-    target = """BasicModel:
-==================================================
-dense: Linear(in_features=100, out_features=20, bias=True) - 2020 parameters
-==================================================
+    target = """module (BasicModel) - 2020 parameters
+└── dense (Linear) - 2020 parameters
+══════════════════════════════════════════════════
 Total: 2020 parameters
-Trainable: 2020 parameters (100.00% trainable)
-=================================================="""
+Trainable: 2020 parameters (100.00% trainable)"""
     assert net.summary() == target
 
 
-def test_model_print_frozen():
-    """Tests that the model prints correctly with frozen parameters."""
+def test_model_summary_frozen(mocker):
+    """Tests that the model is summarized correctly with frozen parameters."""
+    mocker.patch(
+        'os.get_terminal_size',
+        return_value=namedtuple(
+            "TerminalSize",
+            ["columns", "lines"]
+        )(50, 100)
+    )
+
     net = BasicModel(checkpoint_dir="checkpoints")
-    net.dense.requires_grad_ = False
-    target = """BasicModel:
-==================================================
-dense: Linear(in_features=100, out_features=20, bias=True) - 2020 parameters
-==================================================
+
+    net.dense.weight.requires_grad = False
+    net.dense.bias.requires_grad = False
+
+    target = """module (BasicModel) - 2020 parameters
+└── dense (Linear) - 2020 parameters
+══════════════════════════════════════════════════
 Total: 2020 parameters
-Trainable: 0 parameters (0.00% trainable)
-=================================================="""
+Trainable: 0 parameters (0.00% trainable)"""
+    assert net.summary() == target
+
+
+def test_nested_model_summary_depth_0(mocker):
+    """Tests that the model is summarized correctly with nested layers up to depth 0."""
+    mocker.patch(
+        'os.get_terminal_size',
+        return_value=namedtuple(
+            "TerminalSize",
+            ["columns", "lines"]
+        )(50, 100)
+    )
+
+    net = NestedBasicModel(checkpoint_dir="checkpoints")
+    target = """module (NestedBasicModel) - 102942 parameters
+══════════════════════════════════════════════════
+Total: 102942 parameters
+Trainable: 102942 parameters (100.00% trainable)"""
+    assert net.summary(max_depth=0) == target
+
+
+def test_nested_model_summary_depth_1(mocker):
+    """Tests that the model is summarized correctly with nested layers up to depth 1."""
+    mocker.patch(
+        'os.get_terminal_size',
+        return_value=namedtuple(
+            "TerminalSize",
+            ["columns", "lines"]
+        )(50, 100)
+    )
+
+    net = NestedBasicModel(checkpoint_dir="checkpoints")
+    target = """module (NestedBasicModel) - 102942 parameters
+├── features (Sequential) - 102936 parameters
+└── norm (BatchNorm2d) - 6 parameters
+══════════════════════════════════════════════════
+Total: 102942 parameters
+Trainable: 102942 parameters (100.00% trainable)"""
+    assert net.summary(max_depth=1) == target
+
+
+def test_nested_model_summary_depth_2(mocker):
+    """Tests that the model is summarized correctly with nested layers up to depth 2."""
+    mocker.patch(
+        'os.get_terminal_size',
+        return_value=namedtuple(
+            "TerminalSize",
+            ["columns", "lines"]
+        )(50, 100)
+    )
+
+    net = NestedBasicModel(checkpoint_dir="checkpoints")
+    target = """module (NestedBasicModel) - 102942 parameters
+├── features (Sequential) - 102936 parameters
+│   ├── 0 (ConvBN) - 960 parameters
+│   ├── 1 (ConvBN) - 18624 parameters
+│   ├── 2 (ConvBN) - 74112 parameters
+│   └── 3 (ConvBN) - 9240 parameters
+└── norm (BatchNorm2d) - 6 parameters
+══════════════════════════════════════════════════
+Total: 102942 parameters
+Trainable: 102942 parameters (100.00% trainable)"""
+    assert net.summary(max_depth=2) == target
+
+
+def test_nested_model_summary(mocker):
+    """Tests that the model is summarized correctly with nested layers."""
+    mocker.patch(
+        'os.get_terminal_size',
+        return_value=namedtuple(
+            "TerminalSize",
+            ["columns", "lines"]
+        )(50, 100)
+    )
+
+    net = NestedBasicModel(checkpoint_dir="checkpoints")
+    target = """module (NestedBasicModel) - 102942 parameters
+├── features (Sequential) - 102936 parameters
+│   ├── 0 (ConvBN) - 960 parameters
+│   │   ├── conv (Conv2d) - 896 parameters
+│   │   └── bn (BatchNorm2d) - 64 parameters
+│   ├── 1 (ConvBN) - 18624 parameters
+│   │   ├── conv (Conv2d) - 18496 parameters
+│   │   └── bn (BatchNorm2d) - 128 parameters
+│   ├── 2 (ConvBN) - 74112 parameters
+│   │   ├── conv (Conv2d) - 73856 parameters
+│   │   └── bn (BatchNorm2d) - 256 parameters
+│   └── 3 (ConvBN) - 9240 parameters
+│       ├── conv (Conv2d) - 9224 parameters
+│       └── bn (BatchNorm2d) - 16 parameters
+└── norm (BatchNorm2d) - 6 parameters
+══════════════════════════════════════════════════
+Total: 102942 parameters
+Trainable: 102942 parameters (100.00% trainable)"""
     assert net.summary() == target

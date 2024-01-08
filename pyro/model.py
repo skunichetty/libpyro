@@ -1,11 +1,11 @@
-import torch
 import os
 import pathlib
-from typing import Union, Iterable
-from functools import reduce
+from dataclasses import dataclass
 from datetime import datetime
+from functools import reduce
+from typing import Callable, Iterable, Union
 
-LENGTH = 50
+import torch
 
 
 class Model(torch.nn.Module):
@@ -26,7 +26,10 @@ class Model(torch.nn.Module):
             **kwargs: Arbitrary keyword arguments.
         """
         super(Model, self).__init__(*args, **kwargs)
+
         self.checkpoint_dir = pathlib.Path(checkpoint_dir)
+        self._summary_stack = []
+        self._summarizer = build_summarizer(self._summary_stack)
 
     def save(self, name: str = None, **metadata):
         """
@@ -87,40 +90,110 @@ class Model(torch.nn.Module):
 
         return checkpoint
 
-    def summary(self) -> str:
+    def summary(self, max_depth: int = None) -> str:
         """
-        Return a summary of the model, including the number of parameters.
+        Return a summary of the model in the form of a submodule tree.
+
+        Args:
+            max_depth (int, optional): The maximum depth of submodules to display. Defaults to None,
+                                     in which case no maximum depth is applied.
 
         Returns:
-            str: A string representation of the model summary.
+            str: A summary of the model.
         """
-        output = []
-        total_param, trainable_param = 0, 0
+        total_count = self._summarizer(self, "module", max_depth)
+        percent_trainable = total_count.trainable / total_count.total * 100
+        with_parameter_counts = [
+            "\n".join(self._summary_stack[::-1]),
+            "═" * os.get_terminal_size().columns,
+            f"Total: {total_count.total} parameters",
+            f"Trainable: {total_count.trainable} parameters ({percent_trainable:.2f}% trainable)"
+        ]
+        return "\n".join(with_parameter_counts)
 
-        separator = "\n" + "─" * LENGTH + "\n"
-        thick_separator = "=" * LENGTH
 
-        def extract(module_info):
-            nonlocal total_param, trainable_param
-            name, module = module_info
-            count = sum(map(lambda x: x.numel(), module.parameters()))
-            total_param += count
-            if module.requires_grad_:
-                trainable_param += count
-            return f"{name}: {module} - {count} parameters"
-
-        output.append(f"{self.__class__.__name__}:")
-        output.append(thick_separator)
-        output.append(separator.join(map(extract, self.named_children())))
-        output.append(thick_separator)
-        output.append(
-            f"Total: {total_param} parameters\n"
-            f"Trainable: {trainable_param} parameters ({(trainable_param / total_param * 100):.2f}% trainable)"
-        )
-        output.append(thick_separator)
-
-        return "\n".join(output)
 # --- utils ---
+
+
+@dataclass
+class _ParameterCount:
+    trainable: int = 0
+    total: int = 0
+
+
+def build_summarizer(
+        stack: list[str],
+) -> Callable[[torch.nn.Module, str, int | None], _ParameterCount]:
+    """
+    Build a summarizer function that can be used to generate a model summary.
+
+    Args:
+        stack (list[str]): The stack to which the summarizer should append its results.
+
+    Returns:
+        Callable[[torch.nn.Module, str, int | None], _ParameterCount]: A summarizer function that can be used
+        to generate a model summary.
+    """
+    terminal_states = []
+
+    def build_prefix() -> str:
+        """
+        Build the prefix for a line in the model summary.
+        """
+        if len(terminal_states) == 0:
+            return ""
+
+        components = ["    " if terminal else "│   " for terminal in terminal_states[:-1]]
+        components.append("└── " if terminal_states[-1] else "├── ")
+        return "".join(components)
+
+    def build_line(
+            module: torch.nn.Module,
+            name: str,
+            count: _ParameterCount,
+    ) -> str:
+        """
+        Build a line in the model summary.
+        """
+        module_type = module.__class__.__name__  # get class name for module
+        prefix = build_prefix()
+
+        name_portion = f"{prefix}{name} ({module_type})"
+        if count.total > 0:
+            param_portion = f" - {count.total} parameters"
+        else:
+            param_portion = ""
+        return name_portion + param_portion
+
+    def summarizer(module: torch.nn.Module, name: str, max_depth: int = None) -> _ParameterCount:
+        """
+        Summarize a module and its submodules.
+        """
+        children = list(module.named_children())
+        count = _ParameterCount()
+
+        if len(children) != 0:
+            terminal_states.append(True)
+            for index, (child_name, child) in enumerate(children[::-1]):
+                result = summarizer(child, child_name, max_depth)
+                count.trainable += result.trainable
+                count.total += result.total
+                if index == 0:
+                    terminal_states[-1] = False
+            terminal_states.pop()
+        else:
+            for parameter in module.parameters():
+                parameter_count = parameter.numel()
+                count.total += parameter_count
+                if parameter.requires_grad:
+                    count.trainable += parameter_count
+
+        if max_depth is None or len(terminal_states) <= max_depth:
+            stack.append(build_line(module, name, count))
+
+        return count
+
+    return summarizer
 
 
 def find_file_by_timestamp(files: Iterable[pathlib.Path], latest=True) -> pathlib.Path:
