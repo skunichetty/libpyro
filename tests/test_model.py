@@ -178,15 +178,12 @@ def test_load_auto_one_choice(tmp_path):
 def test_model_summary(mocker):
     """Tests that the model is summarized correctly."""
     mocker.patch(
-        'os.get_terminal_size',
-        return_value=namedtuple(
-            "TerminalSize",
-            ["columns", "lines"]
-        )(50, 100)
+        "os.get_terminal_size",
+        return_value=namedtuple("TerminalSize", ["columns", "lines"])(50, 100),
     )
 
     net = BasicModel(checkpoint_dir="checkpoints")
-    target = """module (BasicModel) - 2020 parameters
+    target = """ (BasicModel) - 2020 parameters
 └── dense (Linear) - 2020 parameters
 ══════════════════════════════════════════════════
 Total: 2020 parameters
@@ -197,11 +194,8 @@ Trainable: 2020 parameters (100.00% trainable)"""
 def test_model_summary_frozen(mocker):
     """Tests that the model is summarized correctly with frozen parameters."""
     mocker.patch(
-        'os.get_terminal_size',
-        return_value=namedtuple(
-            "TerminalSize",
-            ["columns", "lines"]
-        )(50, 100)
+        "os.get_terminal_size",
+        return_value=namedtuple("TerminalSize", ["columns", "lines"])(50, 100),
     )
 
     net = BasicModel(checkpoint_dir="checkpoints")
@@ -209,7 +203,7 @@ def test_model_summary_frozen(mocker):
     net.dense.weight.requires_grad = False
     net.dense.bias.requires_grad = False
 
-    target = """module (BasicModel) - 2020 parameters
+    target = """ (BasicModel) - 2020 parameters
 └── dense (Linear) - 2020 parameters
 ══════════════════════════════════════════════════
 Total: 2020 parameters
@@ -220,15 +214,12 @@ Trainable: 0 parameters (0.00% trainable)"""
 def test_nested_model_summary_depth_0(mocker):
     """Tests that the model is summarized correctly with nested layers up to depth 0."""
     mocker.patch(
-        'os.get_terminal_size',
-        return_value=namedtuple(
-            "TerminalSize",
-            ["columns", "lines"]
-        )(50, 100)
+        "os.get_terminal_size",
+        return_value=namedtuple("TerminalSize", ["columns", "lines"])(50, 100),
     )
 
     net = NestedBasicModel(checkpoint_dir="checkpoints")
-    target = """module (NestedBasicModel) - 102942 parameters
+    target = """ (NestedBasicModel) - 102942 parameters
 ══════════════════════════════════════════════════
 Total: 102942 parameters
 Trainable: 102942 parameters (100.00% trainable)"""
@@ -238,15 +229,12 @@ Trainable: 102942 parameters (100.00% trainable)"""
 def test_nested_model_summary_depth_1(mocker):
     """Tests that the model is summarized correctly with nested layers up to depth 1."""
     mocker.patch(
-        'os.get_terminal_size',
-        return_value=namedtuple(
-            "TerminalSize",
-            ["columns", "lines"]
-        )(50, 100)
+        "os.get_terminal_size",
+        return_value=namedtuple("TerminalSize", ["columns", "lines"])(50, 100),
     )
 
     net = NestedBasicModel(checkpoint_dir="checkpoints")
-    target = """module (NestedBasicModel) - 102942 parameters
+    target = """ (NestedBasicModel) - 102942 parameters
 ├── features (Sequential) - 102936 parameters
 └── norm (BatchNorm2d) - 6 parameters
 ══════════════════════════════════════════════════
@@ -258,15 +246,12 @@ Trainable: 102942 parameters (100.00% trainable)"""
 def test_nested_model_summary_depth_2(mocker):
     """Tests that the model is summarized correctly with nested layers up to depth 2."""
     mocker.patch(
-        'os.get_terminal_size',
-        return_value=namedtuple(
-            "TerminalSize",
-            ["columns", "lines"]
-        )(50, 100)
+        "os.get_terminal_size",
+        return_value=namedtuple("TerminalSize", ["columns", "lines"])(50, 100),
     )
 
     net = NestedBasicModel(checkpoint_dir="checkpoints")
-    target = """module (NestedBasicModel) - 102942 parameters
+    target = """ (NestedBasicModel) - 102942 parameters
 ├── features (Sequential) - 102936 parameters
 │   ├── 0 (ConvBN) - 960 parameters
 │   ├── 1 (ConvBN) - 18624 parameters
@@ -282,15 +267,12 @@ Trainable: 102942 parameters (100.00% trainable)"""
 def test_nested_model_summary(mocker):
     """Tests that the model is summarized correctly with nested layers."""
     mocker.patch(
-        'os.get_terminal_size',
-        return_value=namedtuple(
-            "TerminalSize",
-            ["columns", "lines"]
-        )(50, 100)
+        "os.get_terminal_size",
+        return_value=namedtuple("TerminalSize", ["columns", "lines"])(50, 100),
     )
 
     net = NestedBasicModel(checkpoint_dir="checkpoints")
-    target = """module (NestedBasicModel) - 102942 parameters
+    target = """ (NestedBasicModel) - 102942 parameters
 ├── features (Sequential) - 102936 parameters
 │   ├── 0 (ConvBN) - 960 parameters
 │   │   ├── conv (Conv2d) - 896 parameters
