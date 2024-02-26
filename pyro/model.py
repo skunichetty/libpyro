@@ -1,11 +1,12 @@
-import os
 import pathlib
+import shutil
+import torch
+
 from dataclasses import dataclass
 from datetime import datetime
 from functools import reduce
+from os import PathLike
 from typing import Callable, Iterable, Union
-
-import torch
 
 
 class Model(torch.nn.Module):
@@ -16,7 +17,7 @@ class Model(torch.nn.Module):
     Note: Only top level modules should extend this class - all other submodules should defer to `torch.nn.Module`.
     """
 
-    def __init__(self, checkpoint_dir: Union[str, os.PathLike], *args, **kwargs):
+    def __init__(self, checkpoint_dir: Union[str, PathLike], *args, **kwargs):
         """
         Initialize the Model object.
 
@@ -194,7 +195,7 @@ def build_summarizer() -> Callable[[torch.nn.Module, Union[int, None]], str]:
 
         with_parameter_counts = [
             "\n".join(stack[::-1]),
-            "═" * os.get_terminal_size().columns,
+            "═" * shutil.get_terminal_size().columns,
             f"Total: {total_count.total} parameters",
             f"Trainable: {total_count.trainable} parameters ({percent_trainable:.2f}% trainable)",
         ]

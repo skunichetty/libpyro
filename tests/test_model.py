@@ -194,7 +194,7 @@ def test_load_auto_one_choice(tmp_path):
 def test_model_summary(mocker):
     """Tests that the model is summarized correctly."""
     mocker.patch(
-        "os.get_terminal_size",
+        "shutil.get_terminal_size",
         return_value=namedtuple("TerminalSize", ["columns", "lines"])(50, 100),
     )
 
@@ -210,7 +210,7 @@ Trainable: 2020 parameters (100.00% trainable)"""
 def test_model_summary_frozen(mocker):
     """Tests that the model is summarized correctly with frozen parameters."""
     mocker.patch(
-        "os.get_terminal_size",
+        "shutil.get_terminal_size",
         return_value=namedtuple("TerminalSize", ["columns", "lines"])(50, 100),
     )
 
@@ -230,7 +230,7 @@ Trainable: 0 parameters (0.00% trainable)"""
 def test_nested_model_summary_depth_0(mocker):
     """Tests that the model is summarized correctly with nested layers up to depth 0."""
     mocker.patch(
-        "os.get_terminal_size",
+        "shutil.get_terminal_size",
         return_value=namedtuple("TerminalSize", ["columns", "lines"])(50, 100),
     )
 
@@ -245,7 +245,7 @@ Trainable: 102942 parameters (100.00% trainable)"""
 def test_nested_model_summary_depth_1(mocker):
     """Tests that the model is summarized correctly with nested layers up to depth 1."""
     mocker.patch(
-        "os.get_terminal_size",
+        "shutil.get_terminal_size",
         return_value=namedtuple("TerminalSize", ["columns", "lines"])(50, 100),
     )
 
@@ -262,7 +262,7 @@ Trainable: 102942 parameters (100.00% trainable)"""
 def test_nested_model_summary_depth_2(mocker):
     """Tests that the model is summarized correctly with nested layers up to depth 2."""
     mocker.patch(
-        "os.get_terminal_size",
+        "shutil.get_terminal_size",
         return_value=namedtuple("TerminalSize", ["columns", "lines"])(50, 100),
     )
 
@@ -283,7 +283,7 @@ Trainable: 102942 parameters (100.00% trainable)"""
 def test_nested_model_summary(mocker):
     """Tests that the model is summarized correctly with nested layers."""
     mocker.patch(
-        "os.get_terminal_size",
+        "shutil.get_terminal_size",
         return_value=namedtuple("TerminalSize", ["columns", "lines"])(50, 100),
     )
 
@@ -312,7 +312,7 @@ Trainable: 102942 parameters (100.00% trainable)"""
 def test_model_summary_invalid_depth(mocker):
     """Tests that an invalid depth raises an error."""
     mocker.patch(
-        "os.get_terminal_size",
+        "shutil.get_terminal_size",
         return_value=namedtuple("TerminalSize", ["columns", "lines"])(50, 100),
     )
     net = NestedBasicModel(checkpoint_dir="checkpoints")
@@ -323,7 +323,7 @@ def test_model_summary_invalid_depth(mocker):
 def test_model_summary_large_depth(mocker):
     """Tests that a large depth is equivalent to no depth."""
     mocker.patch(
-        "os.get_terminal_size",
+        "shutil.get_terminal_size",
         return_value=namedtuple("TerminalSize", ["columns", "lines"])(50, 100),
     )
     net = NestedBasicModel(checkpoint_dir="checkpoints")
@@ -333,7 +333,7 @@ def test_model_summary_large_depth(mocker):
 def test_model_empty(mocker):
     """Tests that summarizer doesn't error on empty model (with no submodules)"""
     mocker.patch(
-        "os.get_terminal_size",
+        "shutil.get_terminal_size",
         return_value=namedtuple("TerminalSize", ["columns", "lines"])(50, 100),
     )
     net = EmptyModel(checkpoint_dir="checkpoints")
@@ -347,7 +347,7 @@ Trainable: 0 parameters (0.00% trainable)"""
 def test_model_no_submodule(mocker):
     """Tests that summarizer doesn't error on model with parameters but with no submodules"""
     mocker.patch(
-        "os.get_terminal_size",
+        "shutil.get_terminal_size",
         return_value=namedtuple("TerminalSize", ["columns", "lines"])(50, 100),
     )
     net = EmptyModelWithParams(checkpoint_dir="checkpoints")
