@@ -4,7 +4,6 @@ import pyro.model as model
 import pytest
 import time
 import torch
-from tempfile import TemporaryDirectory
 import pathlib
 from collections import namedtuple
 
@@ -41,6 +40,23 @@ class NestedBasicModel(model.Model):
     def forward(self, x):
         x = self.norm(x)
         x = self.features(x)
+        return x
+
+
+class EmptyModel(model.Model):
+    def __init__(self, *args, **kwargs):
+        super(EmptyModel, self).__init__(*args, **kwargs)
+
+    def forward(self, x):
+        return x
+
+
+class EmptyModelWithParams(model.Model):
+    def __init__(self, *args, **kwargs):
+        super(EmptyModelWithParams, self).__init__(*args, **kwargs)
+        self.register_parameter("param", torch.nn.Parameter(torch.rand(10, 2, 3)))
+
+    def forward(self, x):
         return x
 
 
@@ -290,4 +306,53 @@ def test_nested_model_summary(mocker):
 ══════════════════════════════════════════════════
 Total: 102942 parameters
 Trainable: 102942 parameters (100.00% trainable)"""
+    assert net.summary() == target
+
+
+def test_model_summary_invalid_depth(mocker):
+    """Tests that an invalid depth raises an error."""
+    mocker.patch(
+        "os.get_terminal_size",
+        return_value=namedtuple("TerminalSize", ["columns", "lines"])(50, 100),
+    )
+    net = NestedBasicModel(checkpoint_dir="checkpoints")
+    with pytest.raises(ValueError):
+        net.summary(max_depth=-1)
+
+
+def test_model_summary_large_depth(mocker):
+    """Tests that a large depth is equivalent to no depth."""
+    mocker.patch(
+        "os.get_terminal_size",
+        return_value=namedtuple("TerminalSize", ["columns", "lines"])(50, 100),
+    )
+    net = NestedBasicModel(checkpoint_dir="checkpoints")
+    assert net.summary(max_depth=100) == net.summary()
+
+
+def test_model_empty(mocker):
+    """Tests that summarizer doesn't error on empty model (with no submodules)"""
+    mocker.patch(
+        "os.get_terminal_size",
+        return_value=namedtuple("TerminalSize", ["columns", "lines"])(50, 100),
+    )
+    net = EmptyModel(checkpoint_dir="checkpoints")
+    target = """ (EmptyModel)
+══════════════════════════════════════════════════
+Total: 0 parameters
+Trainable: 0 parameters (0.00% trainable)"""
+    assert net.summary() == target
+
+
+def test_model_no_submodule(mocker):
+    """Tests that summarizer doesn't error on model with parameters but with no submodules"""
+    mocker.patch(
+        "os.get_terminal_size",
+        return_value=namedtuple("TerminalSize", ["columns", "lines"])(50, 100),
+    )
+    net = EmptyModelWithParams(checkpoint_dir="checkpoints")
+    target = """ (EmptyModelWithParams) - 60 parameters
+══════════════════════════════════════════════════
+Total: 60 parameters
+Trainable: 60 parameters (100.00% trainable)"""
     assert net.summary() == target

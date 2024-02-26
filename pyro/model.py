@@ -185,14 +185,20 @@ def build_summarizer() -> Callable[[torch.nn.Module, Union[int, None]], str]:
         return count
 
     def summary_fn(module: torch.nn.Module, max_depth: int = None) -> str:
+        if max_depth is not None and max_depth < 0:
+            raise ValueError(f"Expected max depth >= 0, received {max_depth}")
+
+        stack.clear()
         total_count = _summarize(module, "", max_depth)
-        percent_trainable = total_count.trainable / total_count.total * 100
+        percent_trainable = total_count.trainable / (total_count.total + 1e-12) * 100
+
         with_parameter_counts = [
             "\n".join(stack[::-1]),
             "═" * os.get_terminal_size().columns,
             f"Total: {total_count.total} parameters",
             f"Trainable: {total_count.trainable} parameters ({percent_trainable:.2f}% trainable)",
         ]
+
         return "\n".join(with_parameter_counts)
 
     return summary_fn
